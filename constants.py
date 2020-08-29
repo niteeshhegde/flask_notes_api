@@ -1,4 +1,4 @@
 MYSQL_USER = "niteesh"
-MYSQL_PASSWORD = "abcd12345"
+MYSQL_PASSWORD = ""
 MYSQL_DB = "work_india"
-JWT_SECRET_KEY = "abcdabcd12"
+JWT_SECRET_KEY = ""

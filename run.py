@@ -3,12 +3,11 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
-from flask import Flask, Blueprint, request, Response, jsonify
+from flask import Flask, request, jsonify
 from flask_mysqldb import MySQL, MySQLdb
 from constants import MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB, JWT_SECRET_KEY
 from cryptography.fernet import Fernet
 from werkzeug.security import generate_password_hash, check_password_hash
-
 import jwt
 
 
@@ -46,7 +45,6 @@ def db_write(query, params):
         cursor.execute(query, params)
         db_instance.connection.commit()
         cursor.close()
-
         return True
 
     except MySQLdb._exceptions.IntegrityError:
@@ -54,10 +52,26 @@ def db_write(query, params):
         return False
 
 
-def generate_jwt_token(content):
-    encoded_content = jwt.encode(content, JWT_SECRET_KEY, algorithm="HS256")
-    token = str(encoded_content).split("'")[1]
-    return token
+def load_key():
+    return open("secret.key", "rb").read()
+
+
+def encrypt_message(message):
+    key = load_key()
+    encoded_message = message.encode()
+    f = Fernet(key)
+    encrypted_message = f.encrypt(encoded_message)
+
+    return encrypted_message
+
+
+def decrypt_message(encrypted_message):
+    key = load_key()
+    f = Fernet(key)
+    encrypted_message = bytes(encrypted_message, 'utf-8')
+    decrypted_message = f.decrypt(encrypted_message)
+
+    return decrypted_message.decode()
 
 
 @app.route("/app/user", methods=["POST"])
@@ -88,7 +102,6 @@ def login_user():
             jwt_cnt = jwt.encode({"id": user[0]["id"]}, JWT_SECRET_KEY, algorithm="HS256")
             token = str(jwt_cnt).split("'")[1]
             return jsonify({"status": "success", "userId": user[0]["id"], "jwt_token": token})
-
         else:
             return jsonify({"Authentication Error": "Incorrect Password"}), 401
 
@@ -103,9 +116,10 @@ def add_notes():
     user_id_jwt = jwt.decode(jwt_token, JWT_SECRET_KEY)["id"]
     if user_id == user_id_jwt:
         notes = request.json["note"]
+        encrypted_notes = encrypt_message(notes)
         if db_write(
             """INSERT INTO notes (user_id, notes) VALUES (%s, %s)""",
-            (user_id, notes)):
+            (user_id, encrypted_notes)):
             return jsonify({"status": "success"})
         else:
             return jsonify({"Internal Server Error": "Couldn't add Notes"}), 500
@@ -122,9 +136,8 @@ def get_notes():
         all_notes = db_read("""SELECT notes FROM notes WHERE user_id = %s""", (user_id,))
         notes_list = []
         for i in all_notes:
-            notes_list.append(i["notes"])
-        return jsonify({"status": "success", "notes":notes_list})
-
+            notes_list.append(decrypt_message(i["notes"]))
+        return jsonify({"status": "success", "notes": notes_list})
     else:
         return jsonify({"Authorization Error": "Unauthorized"}), 401
 
