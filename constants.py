@@ -1,4 +1,4 @@
 MYSQL_USER = "niteesh"
 MYSQL_PASSWORD = ""
-MYSQL_DB = "work_india"
+MYSQL_DB = ""
 JWT_SECRET_KEY = ""
